@@ -1,21 +1,14 @@
 from argparse import ArgumentParser
 import json
 from time import time
-from typing import List, Union
 from kafka import KafkaConsumer, KafkaProducer
 
-from utils import Env, Const, Frame, MetricsCalculator
+from utils import configure_logger, Env, Const, Frame, MetricsCalculator
+
+logger = configure_logger()
 
 
-# TODO:
-"""
-- docstrings
-- Show results: 1 minute + Latency 5 sec;
-- bool verbose
-"""
-
-
-def run(src_messages: Union[KafkaConsumer, List], producer, verbose: bool):
+def run(consumer: KafkaConsumer, producer: KafkaProducer, verbose: bool):
 
     total_messages = 0
     received_frames = []
@@ -31,7 +24,7 @@ def run(src_messages: Union[KafkaConsumer, List], producer, verbose: bool):
     exec_start_time = time()
     while True:
         try:
-            for message in src_messages:
+            for message in consumer:
                 total_messages += 1
                 msg_proc_start_time = time()
                 try:
@@ -47,7 +40,7 @@ def run(src_messages: Union[KafkaConsumer, List], producer, verbose: bool):
                         f"Invalid data type: {Const.TIMESTAMP} must be integer, got {type(timestamp)};\
                         {Const.UID} must be string, got {type(uid)}"
                 except Exception as e:
-                    print(e)
+                    logger.exception(e)
                     continue
 
                 frame = Frame(timestamp, uid)
@@ -56,7 +49,7 @@ def run(src_messages: Union[KafkaConsumer, List], producer, verbose: bool):
                 received_frames.append(frame)
 
                 if not prev_time:
-                    # First frame arrives; set sec and minute pointers
+                    # First frame arrives; set initial sec and minute pointers
                     prev_time = frame.timestamp
                     sec_interval_pointers.append(i)
                     min_interval_pointers.append(i)
@@ -66,8 +59,8 @@ def run(src_messages: Union[KafkaConsumer, List], producer, verbose: bool):
 
                 if time_delta > 0:
                     # The case when time_delta>1 is not covered
-                    # TODO: propose solution;
-                    # TODO: propose solution for out of order frames;
+                    # TODO: soulution would be to add multiple, same indices to the sec_interval_pointers,
+                    #  indicating empty time period
                     prev_time = frame.timestamp
                     total_time_in_sec += time_delta
                     sec_interval_pointers.append(i)
@@ -80,11 +73,11 @@ def run(src_messages: Union[KafkaConsumer, List], producer, verbose: bool):
                     # producer.flush()
 
                     if verbose:
-                        print(
+                        logger.info(
                             f"Produced message to topic {Env.SEC_METRICS_OUTPUT_TOPIC}")
-                        print(
+                        logger.info(
                             f"{metrics_per_second['datetime']}: {metrics_per_second['num_of_frames']} frames.")
-                        print(
+                        logger.info(
                             f"Average {metrics_per_second['avg_num_of_frames']} frames/second.")
 
                     if total_time_in_sec % Const.SEC_IN_MIN == 0:
@@ -93,28 +86,28 @@ def run(src_messages: Union[KafkaConsumer, List], producer, verbose: bool):
                             received_frames, min_interval_pointers)
                         producer.send(
                             topic=Env.MIN_METRICS_OUTPUT_TOPIC, value=metrics_per_minute)
-
-                        if verbose:
-                            print(
-                                f"Produced message to topic {Env.MIN_METRICS_OUTPUT_TOPIC}")
-                            print(
-                                f"{metrics_per_minute['datetime']}: {metrics_per_minute['unique_users']} unique users.")
-                            print(
-                                f"Average {metrics_per_minute['avg_users_per_minute']} users/minute.")
                         # This would make producers synchronous and reduce throughput
                         # producer.flush()
+                        if verbose:
+                            logger.info(
+                                f"Produced message to topic {Env.MIN_METRICS_OUTPUT_TOPIC}")
+                            logger.info(
+                                f"{metrics_per_minute['datetime']}: {metrics_per_minute['unique_users']} unique users.")
+                            logger.info(
+                                f"Average {metrics_per_minute['avg_users_per_minute']} users/minute.")
 
                 elif time_delta < 0:
+                    # TODO: alter received_frames list, and insert frame to the appropriate position in received_frames list
                     out_of_order_frames.append(received_frames.pop())
                     i -= 1
 
                 msg_processing_time += time()-msg_proc_start_time
-                if total_messages % 10000 == 0 and verbose:
-                    print(
+                if total_messages % Env.PRINT_INTERVAL == 0 and verbose:
+                    logger.info(
                         f'Processed {total_messages} messages in {round(time()-exec_start_time, 2)} seconds')
-                    print(
+                    logger.info(
                         f"Average message processing time: {msg_processing_time/total_messages} seconds.")
-                    print(
+                    logger.info(
                         f"Out of order frames: {len(out_of_order_frames)}/{total_messages}")
         finally:
             consumer.close()
@@ -137,7 +130,7 @@ if __name__ == "__main__":
         bootstrap_servers=Env.BOOTSTRAP_SERVERS,
         auto_offset_reset='earliest',
         enable_auto_commit=True,
-        group_id=Env.CONSUMER_GROUP_ID+'_1',
+        group_id=Env.CONSUMER_GROUP_ID,
         value_deserializer=lambda x: json.loads(x.decode('utf-8'))
     )
 

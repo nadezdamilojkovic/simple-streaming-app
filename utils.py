@@ -2,11 +2,29 @@ from collections import namedtuple
 from datetime import datetime
 import math
 import os
+import logging
+import logging.config
 from typing import Dict, List
-import time
 from dotenv import load_dotenv
 
 load_dotenv()
+
+
+def configure_logger():
+    logging.basicConfig(filename='logging/log.txt',
+                        filemode='a',
+                        format='%(asctime)s,%(msecs)d %(name)s %(levelname)s %(message)s',
+                        datefmt='%H:%M:%S',
+                        level=logging.INFO)
+
+    logging.config.dictConfig({
+        'version': 1,
+        'disable_existing_loggers': True,
+    })
+    logger = logging.getLogger("StreamingApp")
+    logger.addHandler(logging.StreamHandler())
+    return logger
+
 
 Frame = namedtuple("Frame", ["timestamp", "uid"])
 
@@ -18,6 +36,7 @@ class Env:
     SEC_METRICS_OUTPUT_TOPIC = os.getenv("SEC_METRICS_OUTPUT_TOPIC")
     MIN_METRICS_OUTPUT_TOPIC = os.getenv("MIN_METRICS_OUTPUT_TOPIC")
     OUTPUT_STREAM = os.getenv("OUTPUT_STREAM")
+    PRINT_INTERVAL = int(os.getenv("PRINT_INTERVAL"))
 
 
 class Const:
