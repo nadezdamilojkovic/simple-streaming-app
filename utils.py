@@ -42,7 +42,7 @@ class Env:
 class Const:
     TIMESTAMP = "ts"
     UID = "uid"
-    LATENCY = 5
+    LATENCY = 5000
     SEC_IN_MIN = 60
 
 
@@ -61,7 +61,16 @@ class MetricsCalculator:
         seconds_pointers: List
     ) -> Dict[str, float]:
         """
-            TODO
+            Calculate metrics for the last second. 
+            Frames arrived in the last second are accessed by slicing frames list with the last two
+            pointers in the seconds_pointers list;
+
+            Args:
+                frames (list): a list of received frames;
+                seconds_pointers (list): a list of indices of the first frame in each consecutive second
+
+            Returns:
+                Dict[str, float]: per second statistics as a dict
         """
         sec_range_start = seconds_pointers[-2]
         sec_range_end = seconds_pointers[-1]
@@ -90,7 +99,16 @@ class MetricsCalculator:
         mins_pointers: List
     ) -> Dict[str, float]:
         """
-            TODO
+            Calculate metrics for the last minute. 
+            Frames arrived in the last minute are accessed by slicing frames list with the last two
+            pointers in the mins_pointers list;
+
+            Args:
+                frames (list): a list of received frames;
+                seconds_pointers (list): a list of indices of the first frame in each consecutive minute
+
+            Returns:
+                Dict[str, float]: per minute statistics as a dict
         """
         min_range_start = mins_pointers[-2]
         min_range_end = mins_pointers[-1]
