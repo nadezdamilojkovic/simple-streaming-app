@@ -137,7 +137,7 @@ if __name__ == "__main__":
     producer = KafkaProducer(
         bootstrap_servers=Env.BOOTSTRAP_SERVERS,
         value_serializer=lambda v: json.dumps(v).encode('utf-8'),
-        linger_ms=Const.LATENCY*1000
+        linger_ms=Const.LATENCY
     )
 
     run(consumer, producer, args.verbose)
